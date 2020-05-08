@@ -1,0 +1,454 @@
+CREATE TABLE Student(
+	Sno VARCHAR(10) PRIMARY KEY,
+	Sname VARCHAR(10) UNIQUE,
+	Ssex VARCHAR(1),
+	Sage INT,
+	Sdept VARCHAR(10)
+);
+
+CREATE TABLE Course
+(
+	Cno VARCHAR(10) PRIMARY KEY,
+	Cname VARCHAR(10) UNIQUE,
+	Cpno VARCHAR(10),
+	Ccredit INT,
+	FOREIGN KEY(Cpno) REFERENCES Course(Cno)
+);
+
+CREATE TABLE SC
+(
+	Sno VARCHAR(10),
+	Cno VARCHAR(10),
+	Grade INT,
+	PRIMARY KEY(Sno, Cno),
+	FOREIGN KEY(Sno) REFERENCES Student(Sno),
+	FOREIGN KEY(Cno) REFERENCES Course(Cno)
+);
+
+insert into Student(Sno, Sname, Ssex, Sage, Sdept)
+values
+('95001', '李勇', '男', 20, 'CS'),
+('95002', '刘晨', '女', 19, 'IS'),
+('95003', '王敏', '女', 18, 'MA'),
+('95004', '张立', '男', 19, 'IS');
+
+insert into Course(Cno, Cname, Ccredit)
+values
+('1', '数据库', 4),
+('2', '数学', 2),
+('3', '信息系统', 4),
+('4', '操作系统', 3),
+('5', '数据结构', 4),
+('6', '数据处理', 2),
+('7', 'PASCAL语言', 4);
+
+-- insert完Course表之后，单独Update Cpno字段
+update Course set Cpno=5 where Cno=1;
+update Course set Cpno=1 where Cno=3;
+update Course set Cpno=6 where Cno=4;
+update Course set Cpno=7 where Cno=5;
+update Course set Cpno=6 where Cno=7;
+
+insert into SC(Sno, Cno, Grade)
+values
+('95001', '1', 92),
+('95001', '2', 85),
+('95001', '3', 88),
+('95002', '2', 90),
+('95002', '3', 80);
+
+alter table Student add Entrance_date DATE;
+update Student set Entrance_date = '20170901' where Sname = '刘晨';
+
+alter table Student drop Entrance_date;
+
+alter table Student modify column Ssex CHAR(10);
+
+drop table SC;
+
+CREATE UNIQUE INDEX Snoindex ON Student(Sno); 
+
+drop index Snoindex on Student;
+
+-- 查询全体学生的姓名、学号、所在系
+select Sname, Sno, Sdept from Student;
+-- 查询全体学生的姓名及出生年份
+select Sname, 2020-Sage from Student;
+-- 查询选修了课程的学生学号（去掉结果中的重复行）
+select distinct Sno from SC;
+-- 查询计算机科学系全体学生的名单（查询满足条件的元组）
+select Sname from Student where Sdept='CS';
+-- 查询不是CS MA系的学生姓名和性别（使用谓词IN查找属于指定集合的元组）
+select Sname,Ssex from Student where Sdept not in ('CS','MA');
+-- 查询所有姓刘的学生的姓名（字符匹配）
+select Sname from Student where Sname like '刘%';
+-- 查询选修了3号课程的学生学号和成绩，查询结果按分数降序排列
+select Sno, grade from SC where Cno='3' order by grade desc;
+-- 计算1号课程学生的平均成绩（聚集函数）
+select AVG(grade) from SC where Cno='1' ;
+-- 求各个课程号及相应的选课人数
+select Cno, Count(Sno) from SC group by Cno;
+-- 查询选修了3门以上(包括3门)课程的学生学号
+select Sno from SC group by Sno having count(Sno)>=3; 
+
+
+-- 查询每个学生及其选修课程的情况
+select Student.*, SC.* from Student,SC where Student.Sno = SC.Sno;
+
+-- 查询每一门课的间接先修课(自身连接)
+select first.Cno, second.Cpno from Course as first,Course as second 
+where first.Cpno = second.Cno and second.Cpno is not NULL;
+
+-- 查询选修2号课程且成绩在90分以上(包括90分)的所有学生
+select Student.Sno, Student.Sname from SC, Student where SC.Cno='2' and SC.Grade>=90 and SC.Sno = Student.Sno;
+
+-- 查询与刘晨在同一个系学习的学生 
+select Sno, Sname, Sdept from Student where Sdept in 
+(select Sdept from Student where Sname='刘晨');
+
+-- 查询选修了课程名为信息系统的学生学号和姓名(嵌套查询版本)
+select Sno, Sname from Student where Sno in 
+(
+	select Sno from SC where Cno in
+	(
+		select Cno from Course where Cname = '信息系统'
+	)
+);
+-- 查询选修了课程名为信息系统的学生学号和姓名(连接查询版本)
+select Student.Sno, Student.Sname
+from Student, SC, Course
+where Student.Sno = SC.Sno AND
+SC.Cno = Course.Cno AND
+Course.Cname = '信息系统';
+
+-- 找出每个学生超过他选修课程平均成绩的课程号
+select Sno, Cno
+from SC as x
+where x.Grade >= (select AVG(Grade) from SC as y where y.Sno = x.Sno);
+
+-- 查询其他系中比计算机科学某一学生年龄小的学生姓名和年龄
+select Sname,Sage from Student where Sdept<>'CS' and Sage <
+any
+(
+	select Sage from Student where Sdept = 'CS'
+);
+
+-- 查询所有选修了一号课程的学生姓名
+select Sname from Student where exists
+(
+	select * from SC where SC.Sno = Student.Sno AND Cno='1'
+)
+
+-- 查询选修了全部课程的学生姓名
+select Sname from Student where not exists
+(
+	select * from Course where not exists
+	(
+		select * from SC where SC.Sno = Student.Sno and SC.Cno=Course.Cno 
+	)
+);
+--  查询至少选修了学生95002选修的全部课程的学生号码
+select distinct Sno from SC as SCX where not exists
+(
+	select * from SC as SCY where SCY.Sno='95002' and not exists
+	(
+		select * from SC as SCZ where SCZ.Sno = SCX.Sno and SCZ.Cno = SCY.Cno 
+	)
+);
+
+-- 查询选修了课程1或者选修了课程2的学生
+select Sno from SC where Cno = '1'
+union
+select Sno from SC where Cno = '2';
+
+-- 查询选修了课程1和课程2的学生
+select Sno from Student where exists
+(
+	select * from SC where SC.Sno = Student.Sno and SC.Cno='1'
+)
+and
+exists
+(
+	select * from SC where SC.Sno = Student.Sno and SC.Cno='2'
+);
+
+-- 删除
+delete from SC where Sno in
+(
+	select Sno from Student where Sdept = 'CS'
+);
+
+-- 建立计算机系选修了1号课程的学生的视图
+create view VV1(Sno, Sname, Grade)
+AS 
+select Student.Sno, Student.Sname, SC.Grade
+from Student, SC
+where Sdept='CS' and student.Sno = SC.Sno and SC.Cno='1';
+
+-- 建立计算机系选修了1号课程且成绩90分以上的学生的视图（视图建立在视图之上）
+create view VV2(Sno, Sname, Grade)
+AS 
+select VV1.Sno, VV1.Sname, VV1.Grade
+from VV1
+where Grade>90;
+
+drop view VV1;
+drop view VV2;
+
+-- 建立信息系学生的视图
+create view ISstudent
+as 
+select * 
+from Student
+where Sdept = 'IS'
+with check option;
+
+-- 查询选修了2号课程的学生（在信息系视图中）
+select * from ISstudent, SC where ISStudent.Sno = SC.Sno and SC.Cno = '2';
+
+-- 将信息系学生视图isstudent中学号为95002的学生姓名改为张三
+update isstudent set Sname='张三'
+where Sno='95002';
+
+-- 首先创建用户（U1-U8）
+create user 'u1'@'%' identified by '123';
+create user 'u2'@'%' identified by '123';
+create user 'u3'@'%' identified by '123';
+create user 'u4'@'%' identified by '123';
+create user 'u5'@'%' identified by '123';
+create user 'u6'@'%' identified by '123';
+create user 'u7'@'%' identified by '123';
+create user 'u8'@'%' identified by '123';
+
+-- 给用户u1授权select
+grant select on student to 'u1';
+-- 显示u1用户的权限
+show grants for 'u1';
+-- 给用户u2和u3授予Student和Course表所有权限
+grant all privileges on Student to 'u2', 'u3';
+grant all privileges on Course to 'u2', 'u3';
+-- 显示u2u3用户的权限
+show grants for 'u2';
+show grants for 'u3';
+
+-- 把对SC表的查询权限赋予所有用户
+-- mysql 没有 to public 语法
+grant select on SC to 'u1','u2','u3','u4','u5','u6','u7','u8';
+
+-- 把查询Student表和修改学生学号的权限授予U4
+grant update(Sno), select on Student to 'u4';
+show grants for 'u4';
+
+-- 把对表Student的insert权限授予U5用户，并且允许他再将此权限授予其他用户
+grant insert on Student to 'u5' with grant option;
+show grants for 'u5';
+
+show grants for 'u1';
+show grants for 'u2';
+show grants for 'u3';
+show grants for 'u4';
+show grants for 'u5';
+show grants for 'u6';
+show grants for 'u7';
+show grants for 'u8';
+
+-- 把用户u4修改学生学号的权限收回
+revoke update(Sno) on student from 'u4';
+show grants for 'u4';
+
+--收回U5的权限
+show grants for 'u5';
+revoke insert on Student from 'u5';
+show grants for 'u5';
+show grants for 'u6';
+show grants for 'u7';
+
+-- 创建角色
+create role read_SC;
+grant all on SC to read_SC;
+
+-- 将角色read_SC的权限赋予用户u8
+show grants for 'u8';
+grant read_SC to 'u8';
+show grants for 'u8';
+
+-- 语句查询激活状态
+select current_role();
+-- 语句激活role
+set default role all to 'u8';
+
+CREATE TABLE Student(
+	Sno VARCHAR(10) PRIMARY KEY,
+	Sname VARCHAR(10) not null,
+	Ssex VARCHAR(1),
+	Sage INT,
+	Sdept VARCHAR(10)
+);
+
+CREATE TABLE Course
+(
+	Cno VARCHAR(10) PRIMARY KEY,
+	Cname VARCHAR(10) UNIQUE,
+	Cpno VARCHAR(10),
+	Ccredit INT,
+	FOREIGN KEY(Cpno) REFERENCES Course(Cno)
+);
+
+CREATE TABLE SC
+(
+	Sno VARCHAR(10),
+	Cno VARCHAR(10),
+	Grade INT,
+	PRIMARY KEY(Sno, Cno),
+	FOREIGN KEY(Sno) REFERENCES Student(Sno) on delete cascade on update cascade,
+	FOREIGN KEY(Cno) REFERENCES Course(Cno) on delete cascade on update cascade
+);
+
+insert into Student(Sno, Sname, Ssex, Sage, Sdept)
+values
+('95001', '李勇', '男', 20, 'CS'),
+('95002', '刘晨', '女', 19, 'IS'),
+('95003', '王敏', '女', 18, 'MA'),
+('95004', '张立', '男', 19, 'IS');
+
+insert into Course(Cno, Cname, Ccredit)
+values
+('1', '数据库', 4),
+('2', '数学', 2),
+('3', '信息系统', 4),
+('4', '操作系统', 3),
+('5', '数据结构', 4),
+('6', '数据处理', 2),
+('7', 'PASCAL语言', 4);
+
+-- insert完Course表之后，单独Update Cpno字段
+update Course set Cpno=5 where Cno=1;
+update Course set Cpno=1 where Cno=3;
+update Course set Cpno=6 where Cno=4;
+update Course set Cpno=7 where Cno=5;
+update Course set Cpno=6 where Cno=7;
+
+insert into SC(Sno, Cno, Grade)
+values
+('95001', '1', 92),
+('95001', '2', 85),
+('95001', '3', 88),
+('95002', '2', 90),
+('95002', '3', 80);
+
+
+-- 关于check约束的实验内容
+CREATE TABLE person(
+	id int,
+  sex char(1) check(sex in ('男','女'))
+);
+
+insert into person
+values(1, 0); -- 按道理只能插入男或者女
+
+
+CREATE TABLE person(
+	id int,
+  sex enum('男','女') NOT NULL,
+	PRIMARY KEY (id)
+);
+
+insert into person
+values(1, 0); -- 按道理只能插入男或者女
+
+-- CONSTRAINT
+create table student2
+(
+	Sno NUMERIC(6) 
+	CONSTRAINT C1 CHECK (Sno BETWEEN 90000 AND 99999),
+	Sname CHAR(10),
+	Sage NUMERIC(3)
+	CONSTRAINT C3 CHECK(Sage < 30),
+	Ssex char(2)
+  CONSTRAINT C4 CHECK (Ssex in ('男','女')),
+	-- 主码约束
+	CONSTRAINT MAINKEY PRIMARY KEY(Sno)
+);
+
+insert into Student2
+values(95123, '张三', 29, '男'); -- 正确例子
+
+
+insert into Student2
+values(95124, '李四', 29, '哈'); -- 错误例子1，性别
+
+insert into Student2
+values(123, '王五', 29, '男'); -- 错误例子2，学号
+
+alter table Student2 drop CONSTRAINT C3;
+
+-- 触发器
+-- 仿照书本先定义三个表
+create table dept(
+Deptno int primary key,
+Deptname varchar(10)
+);
+
+create table teacher(
+Eno numeric(4) primary key,
+Ename varchar(10),
+Job varchar(8),
+Sal numeric(7, 2),
+Deduct numeric(7, 2),
+Deptno int,
+foreign key(Deptno) references dept (Deptno)
+);
+
+create table sal_log(
+Eno numeric(4) references teacher(Eno),Sal numeric(7, 2),
+Username varchar(10),
+Date timestamp
+);
+
+-- 定义before触发器
+create trigger insert_sal
+BEFORE INSERT ON teacher
+for each row
+begin
+	if(new.Job = '教授') and (new.Sal < 4000)
+	then set new.sal = 4000;
+	end if;
+end;
+
+create trigger update_sal
+BEFORE UPDATE ON teacher
+for each row
+begin
+	if(new.Job = '教授') and (new.Sal < 4000)
+	then set new.sal = 4000;
+	end if;
+end;
+
+-- 定义after触发器
+create trigger insert_sal_after
+AFTER INSERT ON teacher
+for each row
+begin
+	INSERT INTO sal_log VALUES(new.Eno, new.Sal, 'abc', CURRENT_TIMESTAMP);
+end;
+
+create trigger update_sal_after
+AFTER UPDATE ON teacher
+for each row
+begin
+	if(new.Sal != old.Sal)
+	then INSERT INTO sal_log VALUES(new.Eno, new.Sal, 'abc', CURRENT_TIME);
+	end if;
+end;
+
+-- 向表中插入数据
+insert into dept
+values(10001, '电信学部');
+insert into teacher
+values(1002, '王五', '教授', 2000, 400, 10001);
+
+-- 激活触发器
+insert into teacher
+values(1004, '张四', '教授', 4100, 400, 10001);
+
+update teacher set Sal = 800 where Eno=1004;
